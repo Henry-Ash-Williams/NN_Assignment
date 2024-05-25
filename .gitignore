@@ -4,3 +4,4 @@
 /cifar10
 /wandb
 /pdfs/Deep-Convolutional-Neural-Networks-for-Image-Classification-A-Comprehensive-Review.pdf
+/models/*.pt

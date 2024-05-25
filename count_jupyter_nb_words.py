@@ -42,6 +42,7 @@ def count_words_in_markdown(notebook_file):
                 # Update word count
                 word_count += cell_count
                 # Check whether word count exceeds limit
+                # print(cell_content)
                 if (word_count > limit) and ((word_count - cell_count) < limit):
                     print(
                         "stop marking from here: {}".format(

@@ -3,7 +3,8 @@ import sys
 import subprocess
 from subprocess import CalledProcessError
 
-config = {"num_runs": 5, "learning_rates": [1e-4, 0.0026, 0.0051, 0.0077, 0.01]}
+# config = {"num_runs": 5, "learning_rates": [1e-4, 0.0026, 0.0051, 0.0077, 0.01]}
+config = {"num_runs": 5, "learning_rates": [1e-4]}
 
 
 def is_venv():
@@ -22,12 +23,14 @@ def run_training(lr, run):
         [
             "python",
             "src/train.py",
+            "--epochs=20",
             f"--learning-rate={lr}",
-            f"--experiment-name=lr-{lr} without relu on fc layers",
+            f"--experiment-name=lr-{lr} without relu on fc layers using lr scheduler",
             f"--run-id={run}",
-            f"--run-name=E1-LR-{lr}-NO_RELU",
+            f"--run-name=E1-LR-{lr}-NO_RELU-LR",
             "--save=both",
-            "--tag=NO_RELU"
+            "--tag=LR_Scheduler",
+            "--use-lr-scheduler=true"
         ]
     ).check_returncode()
 

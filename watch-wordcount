@@ -1,0 +1,42 @@
+#!/bin/sh
+
+# henry 
+#
+# will watch ipynb file specified in argv for any writes 
+# counts the number of words, exluding instructions, 
+# latex, figures, references, etc, prints them in a 
+# pretty box 
+# 
+# relies on: 
+# gum: https://github.com/charmbracelet/gum 
+# entr: https://github.com/eradman/entr
+
+create_text_box() {
+  # try and position the text box with the wordcount of the notebook 
+  # around the center of the term window 
+  cols=$(tput cols)
+  rows=$(tput lines)
+  len=52
+  height=8
+  clear 
+  gum style --foreground "$CATPPUCCIN_BLUE" --border-foreground "$CATPPUCCIN_BLUE" --align center --width 50 --height 2 --margin "$((rows / 2 - height / 2)) $((cols / 2 - len / 2))" --border "double" --padding "2 4" "$(python count_jupyter_nb_words.py $1 | sed 's/([^()]*):/\n/g')"
+}
+
+# check if the function should be executed directly
+if [ "$1" = "create_text_box" ]; then
+  shift
+  create_text_box "$@"
+  exit
+fi
+
+if [ "$1" = "--help" || "$1" = "-h" || -z "$1" ]; then 
+  print "Usage: ./watch-wordcount <some_notebook>.ipynb"
+  exit 
+elif [ ! -e "$1" ]; then 
+  printf "%s doesn't exist" "$1"
+  exit 
+fi  
+
+
+# pass the 
+echo "$1" | entr -r "$0" create_text_box "$1"

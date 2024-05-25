@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 import torch.optim as optim
-from torch.optim import Optimizer
+from torch.optim import Optimizer, lr_scheduler 
 import torchvision
 import torchvision.datasets
 import torchvision.transforms as transforms
@@ -43,6 +43,8 @@ argparser.add_argument("--save", choices=["model", "cm", "both", "none"], type=s
 argparser.add_argument("--freeze-conv-layers", type=bool, default=False)
 argparser.add_argument("--run-name", type=str)
 argparser.add_argument("--tag", type=str)
+argparser.add_argument("--use-lr-scheduler", type=bool, default=True)
+argparser.add_argument("--use-val", type=bool, default=True)
 args = argparser.parse_args()
 
 # Prefer mps over cuda because I use a mac
@@ -70,7 +72,36 @@ transform = transforms.Compose(
 # Loss function 
 criterion = nn.CrossEntropyLoss()
 
-# def scheduler()
+def lerp_lr(epoch: int, start_lr: float=0.01, end_lr: float=0.0001) -> float: 
+    """
+    Linearly interpolates the learning rate between a start and end value over a fixed number of epochs.
+
+    This function calculates the learning rate for a given epoch using linear interpolation (lerp). The learning rate 
+    starts at `start_lr` and decreases to `end_lr` over 10 epochs. The interpolation factor `alpha` increases linearly 
+    with the epoch, while `beta` decreases linearly, ensuring a smooth transition from `start_lr` to `end_lr`.
+
+    Args:
+        epoch (int): The current epoch number. Should be between 0 and 10 inclusive.
+        start_lr (float, optional): The starting learning rate at epoch 0. Default is 0.01.
+        end_lr (float, optional): The ending learning rate at epoch 10. Default is 0.0001.
+
+    Returns:
+        float: The interpolated learning rate for the given epoch.
+    
+    Example:
+        >>> lerp_lr(0)
+        0.01
+        >>> lerp_lr(5)
+        0.00505
+        >>> lerp_lr(10)
+        0.0001
+        >>> lerp_lr(5, start_lr=0.1, end_lr=0.01)
+        0.055
+    """
+    alpha = epoch / args.epochs 
+    beta = ( args.epochs - epoch ) / args.epochs 
+
+    return alpha * end_lr + beta * start_lr
 
 
 def plot_confusion_matrix(y_true, y_pred, labels, save_path):
@@ -150,7 +181,7 @@ def evaluate(
     return predicted_labels, true_labels, total_loss
 
 
-def get_datasets() -> Tuple[DataLoader, DataLoader]:
+def get_train_test_and_val() -> Tuple[DataLoader, DataLoader, DataLoader]:
     train, val = random_split(
         torchvision.datasets.CIFAR10(
             root="./cifar10", train=True, download=True, transform=transform
@@ -158,7 +189,6 @@ def get_datasets() -> Tuple[DataLoader, DataLoader]:
         [0.5, 0.5],
     )
 
-    
     test = torchvision.datasets.CIFAR10(
         root="./cifar10", train=False, download=True, transform=transform
     )
@@ -168,6 +198,23 @@ def get_datasets() -> Tuple[DataLoader, DataLoader]:
     test_loader = DataLoader(test, shuffle=False, batch_size=args.batch_size)
 
     return train_loader, val_loader, test_loader
+
+def get_train_and_test() -> Tuple[DataLoader, DataLoader]:
+
+    train = torchvision.datasets.CIFAR10(
+        root="./cifar10", train=True, download=True, transform=transform
+    )
+    
+
+    
+    test = torchvision.datasets.CIFAR10(
+        root="./cifar10", train=False, download=True, transform=transform
+    )
+
+    train_loader = DataLoader(train, shuffle=True, batch_size=args.batch_size)
+    test_loader = DataLoader(test, shuffle=False, batch_size=args.batch_size)
+
+    return train_loader, test_loader
 
 
 def get_optimizer(optimizer_name: str, model: nn.Module) -> Optimizer:
@@ -255,11 +302,18 @@ def train(
 
     # Gets an instance of optimzer based on the argument '--optimizer' argument 
     optimizer = get_optimizer(args.optimizer, image_classifier)
+
+    if args.use_lr_scheduler: 
+        scheduler = lr_scheduler.LambdaLR(optimizer, lerp_lr)    
+
     # Get the datasets 
-    train_loader, val_loader, test_loader = get_datasets()
+    # train_loader, val_loader, test_loader = get_datasets()
+    train_loader, test_loader = get_train_and_test()
+
     
     # cache the number of samples within each of the datasets 
-    n_samples = {"train": len(train_loader.dataset), "test": len(test_loader.dataset), "val": len(val_loader.dataset), }
+    # n_samples = {"train": len(train_loader.dataset), "test": len(test_loader.dataset), "val": len(val_loader.dataset), }
+    n_samples = {"train": len(train_loader.dataset), "test": len(test_loader.dataset)}
 
     # Loop for the number of epochs specified '--epochs' 
     for epoch in range(args.epochs):
@@ -294,8 +348,11 @@ def train(
 
         # Perform validation 
         val_predictions, val_labels, total_val_loss = evaluate(
-            image_classifier, test_loader
+            image_classifier, test_loader if not args.use_val else val_loader
         )
+
+        if args.use_lr_scheduler: 
+            scheduler.step()
 
         # Log average loss for this epoch 
         wandb.log({"train": {"avg_loss": total_training_loss / n_samples["train"]}})

@@ -31,36 +31,28 @@ class ImageClassifier(nn.Module):
 
         # Fully connected layer 2 (Output layer)
         self.fc2 = nn.Linear(512, 10)
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
         assert x.shape[1:] == torch.Size(
             [3, 32, 32]
-        ), f"Input shape should be (3, 32, 32), recieved {tuple(x.shape[1:])}"
+        ), f"Input shape should be (batch_size, 3, 32, 32), recieved {x.shape}"
 
-        # Apply first convolutional layer, ReLU activation and max pooling
         x = self.conv1(x)  # 32x32x32
         x = F.relu(x)
         x = self.pool1(x)  # 32x16x16
 
-        # Apply second convolutional layer, ReLU activation and max pooling
         x = self.conv2(x)  # 64x16x16
         x = F.relu(x)
         x = self.pool2(x)  # 64x8x8
 
-        # Apply third convolutional layer, ReLU activation and max pooling
         x = self.conv3(x)  # 128x8x8
         x = F.relu(x)
         x = self.pool3(x)  # 128x4x4
 
-        # Flatten the tensor before passing to fully connected layers
         x = x.view(-1, 2048)
 
-        # Apply first fully connected layer and ReLU activation
         x = self.fc1(x)  # 512
-        # x = F.relu(x)
 
-        # Apply second fully connected layer (output layer)
         x = self.fc2(x)  # 10
 
         return x
